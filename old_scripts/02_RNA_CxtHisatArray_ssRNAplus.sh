@@ -1,0 +1,74 @@
+#!/bin/bash
+#SBATCH --partition=acpu
+#SBATCH --job-name=HisatArray
+#SBATCH --output=/scratch/alpine/c837142097@colostate.edu/Virus_Alignments/slurmlogs/%x.%A_%a.out
+#SBATCH --time=12:00:00
+#SBATCH --qos=cpu-normal
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --nodes=1
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=c837142097@colostate.edu
+
+
+#create CxtHisat folder before starting
+
+#Run this first to generate a list of files.
+#ls | grep -v / | grep ".fastq.gz" | grep "R1" | grep "trimmed" > CxtTrimmed.txt
+
+#wc -l CxtTrimmed.txt
+
+#sbatch --array=0-<16> <02_RNA_CxtHisatArray_ssRNAplus.sh>
+#Where N is the number of lines in your AedesTrimmed.txt file minus 1. You can get that easily using the following command
+
+
+
+# to run this script use sbatch --array=0-16 02_RNA_CxtHisatArray_ssRNAplus.sh
+
+BASE=/scratch/alpine/c837142097@colostate.edu/Virus_Alignments
+FQDIR=$BASE/Cxt_FQ/trimmed
+OUTDIR=$BASE/CxtHisat
+INDEX=$BASE/Index/ssRNAplus_Indexes/Virus_Index_ssRNAplus.fa   # basename, no .fa (see note 2)
+LIST=$FQDIR/CxtTrimmed.txt
+
+echo "[$0] $SLURM_JOB_NAME $@" # log the command line
+
+module purge
+source /scratch/alpine/c837142097@colostate.edu/miniconda3/etc/profile.d/conda.sh
+conda activate /scratch/alpine/c837142097@colostate.edu/conda_envs/rnaHisat
+
+mkdir -p "$OUTDIR"
+cd "$FQDIR"
+
+date # timestamp
+
+
+R1=$(sed -n "$((SLURM_ARRAY_TASK_ID + 1))p" "$LIST")
+R2=${R1/_R1_/_R2_}
+OUT=${R2%_R2_001.fastq.gz}
+
+echo "R1:  $R1"
+echo "R2:  $R2"
+echo "OUT: $OUTDIR/$OUT.sam"
+
+hisat2 --phred33 --rna-strandness RF -p "${SLURM_CPUS_PER_TASK:-16}" \
+  -x "$INDEX" -1 "$R1" -2 "$R2" \
+  --summary-file "$OUTDIR/$OUT.summary.txt" \
+  -S "$OUTDIR/$OUT.sam"
+
+#filename=CxtTrimmed.txt # $1
+
+#linenum=0
+#while read -r line
+#do
+#    if [ $SLURM_ARRAY_TASK_ID -eq $linenum ]
+#    then
+#      TWO=${line/_R1_/_R2_}
+#      OUT=${TWO%R2_001.fastq.gz} #Remove end. 
+#      echo ${TWO}
+#      echo $OUT
+#      hisat2 --phred33 --rna-strandness RF -p 16 -x /scratch/alpine/c837142097@colostate.edu/Virus_Alignments/Index/ssRNAplus_Indexes/Virus_Index_ssRNAplus.fa -1 ${line} -2 ${TWO} -S CxtHisat/$OUT.sam
+#    fi
+#    linenum=$((linenum + 1))
+#done < $filename
+
